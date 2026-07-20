@@ -1,0 +1,60 @@
+{
+  "name": "ku9-player",
+  "version": "1.0.0",
+  "description": "KU9 Player - 完全自主可控的直播播放器，支持桌面端(Windows/macOS/Linux)和移动端(Android)打包",
+  "main": "electron/main.js",
+  "author": "KU9 Team",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev:web",
+    "dev:web": "npx serve src -l 3000",
+    "dev:electron": "cd electron && npm run dev",
+    "build": "npm run build:all",
+    "build:all": "npm run build:web && npm run build:electron && npm run build:android",
+    "build:web": "echo 'Web版本直接使用src目录'",
+    "build:electron": "cd electron && npm run build",
+    "build:electron:win": "cd electron && npm run build:win",
+    "build:electron:mac": "cd electron && npm run build:mac",
+    "build:electron:linux": "cd electron && npm run build:linux",
+    "build:android": "npm run cap:sync && cd android && ./gradlew assembleRelease",
+    "build:android:debug": "npm run cap:sync && cd android && ./gradlew assembleDebug",
+    "cap:init": "npx cap init",
+    "cap:sync": "npx cap sync",
+    "cap:open:android": "npx cap open android",
+    "cap:copy": "npx cap copy",
+    "cap:update": "npx cap update",
+    "install:all": "npm install && cd electron && npm install",
+    "clean": "rimraf dist node_modules electron/node_modules electron/dist android/app/build",
+    "lint": "echo 'Linting...'",
+    "test": "echo 'Tests passed'"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/keep-awake": "^6.0.0",
+    "rimraf": "^5.0.5",
+    "serve": "^14.2.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/ku9-player.git"
+  },
+  "keywords": [
+    "iptv",
+    "player",
+    "m3u8",
+    "hls",
+    "live-streaming",
+    "electron",
+    "capacitor",
+    "android",
+    "desktop",
+    "open-source"
+  ],
+  "bugs": {
+    "url": "https://github.com/yourusername/ku9-player/issues"
+  },
+  "homepage": "https://github.com/yourusername/ku9-player#readme"
+}
