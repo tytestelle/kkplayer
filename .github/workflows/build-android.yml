@@ -1,70 +1,42 @@
-name: Build Android APK
+name: Collect Android Build Logs
 
 on:
   push:
     branches: [ main, master ]
-    tags: [ 'v*' ]
-  pull_request:
-    branches: [ main, master ]
   workflow_dispatch:
 
-concurrency:
-  group: android-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  build-android:
+  collect-logs:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: 'gradle'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v4
+      - uses: android-actions/setup-android@v4
         with:
           packages: "platform-tools platforms;android-34 build-tools;34.0.0"
-
-      - name: Cache Gradle
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*') }}
-          restore-keys: |
-            gradle-${{ runner.os }}-
 
       - name: Install dependencies
         run: npm install
 
-      - name: Generate Android project with Capacitor
+      - name: Generate Android project (Capacitor)
         run: |
           rm -rf android
           npx cap add android
           npx cap sync android
 
-      - name: Apply minimal fixes to generated project
+      - name: Apply minimal fixes (as before)
         run: |
-          # 修正 app/build.gradle：添加 namespace，更新 compileSdk/targetSdk，添加 repositories
           cat > android/app/build.gradle << 'EOF'
           apply plugin: 'com.android.application'
-
           android {
               namespace "com.ku9.player"
               compileSdk 34
@@ -76,136 +48,53 @@ jobs:
                   versionName "1.0.0"
               }
               buildTypes {
-                  release {
-                      minifyEnabled false
-                      proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-                  }
+                  release { minifyEnabled false }
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_17
                   targetCompatibility JavaVersion.VERSION_17
               }
           }
-
-          repositories {
-              google()
-              mavenCentral()
-          }
-
-          dependencies {
-              implementation project(':capacitor-android')
-          }
+          repositories { google(); mavenCentral() }
+          dependencies { implementation project(':capacitor-android') }
           EOF
 
-          # 删除 capacitor-android 模块中的 res 文件夹（移除 SplashScreen 主题定义）
           rm -rf android/node_modules/@capacitor/android/capacitor/src/main/res
-
-          # 修正 AndroidManifest.xml：移除 package 属性，使用系统主题
-          cat > android/app/src/main/AndroidManifest.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="android.permission.INTERNET" />
-              <application
-                  android:allowBackup="true"
-                  android:icon="@mipmap/ic_launcher"
-                  android:label="@string/app_name"
-                  android:roundIcon="@mipmap/ic_launcher_round"
-                  android:supportsRtl="true"
-                  android:theme="@style/AppTheme"
-                  android:usesCleartextTraffic="true">
-                  <activity
-                      android:name="com.ku9.player.MainActivity"
-                      android:exported="true"
-                      android:label="@string/app_name"
-                      android:theme="@style/AppTheme.NoActionBarLaunch">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          EOF
-
-          # 确保 styles.xml 中没有引用 Theme.SplashScreen
-          cat > android/app/src/main/res/values/styles.xml << 'EOF'
-          <resources>
-              <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
-                  <item name="colorPrimary">@color/colorPrimary</item>
-                  <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
-                  <item name="colorAccent">@color/colorAccent</item>
-              </style>
-              <style name="AppTheme.NoActionBarLaunch" parent="Theme.AppCompat.Light.NoActionBar">
-                  <item name="android:windowBackground">@color/colorPrimary</item>
-              </style>
-          </resources>
-          EOF
+          # 不要覆盖 AndroidManifest.xml，用 Capacitor 默认的
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      - name: Generate Gradle Wrapper
+      - name: Generate wrapper
         working-directory: android
         run: |
           if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
             gradle wrapper --gradle-version 8.2
           fi
 
-      - name: Build Debug APK
+      - name: Run build with full logging and save output
         working-directory: android
-        run: ./gradlew clean assembleDebug --stacktrace --no-daemon
-
-      - name: Build Release APK (unsigned)
-        working-directory: android
-        run: ./gradlew assembleRelease --stacktrace --no-daemon
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || '' }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS || '' }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || '' }}
-        continue-on-error: true
-
-      - name: List build outputs
         run: |
-          echo "=== Debug APK ==="
-          ls -la android/app/build/outputs/apk/debug/ || echo "No debug output"
-          echo "=== Release APK ==="
-          ls -la android/app/build/outputs/apk/release/ || echo "No release output"
+          # 将完整日志保存到文件
+          ./gradlew clean assembleDebug --stacktrace --info --no-daemon > build.log 2>&1 || true
+          # 同时输出最后 300 行到控制台（方便快速查看）
+          echo "=== LAST 300 LINES OF BUILD LOG ==="
+          tail -n 300 build.log
 
-      - name: Upload Debug APK
+      - name: Package entire android directory (for full inspection)
+        run: |
+          tar -czf android-project.tar.gz android/
+
+      - name: Upload build log
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ku9-player-android-debug
-          path: android/app/build/outputs/apk/debug/*.apk
-          if-no-files-found: warn
+          name: android-build-log
+          path: android/build.log
 
-      - name: Upload Release APK
+      - name: Upload full project archive
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ku9-player-android-release
-          path: android/app/build/outputs/apk/release/*.apk
-          if-no-files-found: warn
-
-  release-android:
-    needs: build-android
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    permissions:
-      contents: write
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            artifacts/**/*.apk
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: android-project-archive
+          path: android-project.tar.gz
