@@ -56,59 +56,15 @@ jobs:
       # ========== 全新创建 Android 项目 ==========
       - name: Create fresh Android project
         run: |
-          # 删除可能存在的旧目录
           rm -rf android
-          
-          # 使用 Capacitor 创建 Android 项目
           npx cap add android
           npx cap sync android
-          
-          # 完全覆盖 app/build.gradle
-          cat > android/app/build.gradle << 'EOF'
-          apply plugin: 'com.android.application'
 
-          android {
-              namespace "com.ku9.player"
-              compileSdk 34
-
-              defaultConfig {
-                  applicationId "com.ku9.player"
-                  minSdk 22
-                  targetSdk 34
-                  versionCode 1
-                  versionName "1.0.0"
-              }
-
-              buildTypes {
-                  release {
-                      minifyEnabled false
-                      proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-                  }
-              }
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }
-          }
-
-          repositories {
-              google()
-              mavenCentral()
-          }
-
-          dependencies {
-              implementation project(':capacitor-android')
-          }
-          EOF
-
-          # 完全覆盖 settings.gradle
+          # ---------- 覆盖所有关键文件 ----------
+          # settings.gradle
           cat > android/settings.gradle << 'EOF'
           pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
           }
           rootProject.name = "MyApp"
           include ':app'
@@ -116,7 +72,32 @@ jobs:
           project(':capacitor-android').projectDir = new File('../node_modules/@capacitor/android/capacitor')
           EOF
 
-          # 完全覆盖 AndroidManifest.xml - 使用系统主题
+          # app/build.gradle
+          cat > android/app/build.gradle << 'EOF'
+          apply plugin: 'com.android.application'
+          android {
+              namespace "com.ku9.player"
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.ku9.player"
+                  minSdk 22
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0.0"
+              }
+              buildTypes {
+                  release { minifyEnabled false }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+          repositories { google(); mavenCentral() }
+          dependencies { implementation project(':capacitor-android') }
+          EOF
+
+          # AndroidManifest.xml：使用系统主题，不引用任何自定义主题
           cat > android/app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -143,7 +124,7 @@ jobs:
           </manifest>
           EOF
 
-          # 创建最小资源文件
+          # 创建完整资源文件，包括 styles.xml 定义 Theme.SplashScreen（虽然不引用，但以防万一）
           mkdir -p android/app/src/main/res/values
           cat > android/app/src/main/res/values/colors.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
@@ -157,8 +138,15 @@ jobs:
               <string name="app_name">KU9 Player</string>
           </resources>
           EOF
+          cat > android/app/src/main/res/values/styles.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <!-- 定义 Theme.SplashScreen 以防被引用 -->
+              <style name="Theme.SplashScreen" parent="@android:style/Theme.DeviceDefault.NoActionBar" />
+          </resources>
+          EOF
 
-          echo "Android project created with minimal configuration"
+          echo "All configuration files written."
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
