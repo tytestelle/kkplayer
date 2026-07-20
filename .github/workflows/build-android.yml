@@ -59,87 +59,9 @@ jobs:
           npx cap add android
           npx cap sync android
 
-      - name: Remove all possible SplashScreen resources
+      - name: Apply fixes to build.gradle, manifest, and resources
         run: |
-          # 1. 删除 capacitor-android 模块的所有资源（彻底根除）
-          CAP_RES="android/node_modules/@capacitor/android/capacitor/src/main/res"
-          if [ -d "$CAP_RES" ]; then
-            rm -rf "$CAP_RES"
-            echo "Deleted $CAP_RES"
-          fi
-
-          # 2. 删除 app 模块中可能存在的 SplashScreen 相关资源（如果有）
-          APP_RES="android/app/src/main/res"
-          # 清理 values 中可能引用 SplashScreen 的样式
-          if [ -f "$APP_RES/values/styles.xml" ]; then
-            rm -f "$APP_RES/values/styles.xml"
-          fi
-          # 删除 drawable 中的 splash 图片（如果有）
-          find "$APP_RES" -name "*splash*" -type f -delete 2>/dev/null || true
-
-      - name: Write clean AndroidManifest.xml (no SplashScreen theme)
-        run: |
-          cat > android/app/src/main/AndroidManifest.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="android.permission.INTERNET" />
-              <application
-                  android:allowBackup="true"
-                  android:icon="@mipmap/ic_launcher"
-                  android:label="KU9 Player"
-                  android:roundIcon="@mipmap/ic_launcher_round"
-                  android:supportsRtl="true"
-                  android:theme="@style/AppTheme"
-                  android:usesCleartextTraffic="true">
-                  <activity
-                      android:name="com.ku9.player.MainActivity"
-                      android:exported="true"
-                      android:label="KU9 Player"
-                      android:theme="@style/AppTheme.NoActionBar">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          EOF
-
-      - name: Write clean styles.xml (no SplashScreen)
-        run: |
-          mkdir -p android/app/src/main/res/values
-          cat > android/app/src/main/res/values/styles.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
-                  <item name="colorPrimary">@color/colorPrimary</item>
-                  <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
-                  <item name="colorAccent">@color/colorAccent</item>
-              </style>
-              <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.Light.NoActionBar" />
-          </resources>
-          EOF
-
-      - name: Write basic colors.xml and strings.xml
-        run: |
-          mkdir -p android/app/src/main/res/values
-          cat > android/app/src/main/res/values/colors.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <color name="colorPrimary">#3F51B5</color>
-              <color name="colorPrimaryDark">#303F9F</color>
-              <color name="colorAccent">#FF4081</color>
-          </resources>
-          EOF
-          cat > android/app/src/main/res/values/strings.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <string name="app_name">KU9 Player</string>
-          </resources>
-          EOF
-
-      - name: Write app/build.gradle (with namespace and repositories)
-        run: |
+          # 1. app/build.gradle: 添加 namespace，repositories，确保 compileSdk 34
           cat > android/app/build.gradle << 'EOF'
           apply plugin: 'com.android.application'
 
@@ -177,8 +99,7 @@ jobs:
           }
           EOF
 
-      - name: Write settings.gradle
-        run: |
+          # 2. settings.gradle 确保正确包含插件版本
           cat > android/settings.gradle << 'EOF'
           pluginManagement {
               repositories {
@@ -196,6 +117,61 @@ jobs:
           project(':capacitor-android').projectDir = new File('../node_modules/@capacitor/android/capacitor')
           EOF
 
+          # 3. AndroidManifest.xml: 移除 package 属性，使用系统主题或不设置主题
+          cat > android/app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <application
+                  android:allowBackup="true"
+                  android:icon="@mipmap/ic_launcher"
+                  android:label="@string/app_name"
+                  android:roundIcon="@mipmap/ic_launcher_round"
+                  android:supportsRtl="true"
+                  android:theme="@style/AppTheme"
+                  android:usesCleartextTraffic="true">
+                  <activity
+                      android:name="com.ku9.player.MainActivity"
+                      android:exported="true"
+                      android:label="@string/app_name"
+                      android:theme="@style/AppTheme.NoActionBar">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          # 4. 提供 colors.xml, strings.xml, styles.xml
+          mkdir -p android/app/src/main/res/values
+          cat > android/app/src/main/res/values/colors.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="colorPrimary">#3F51B5</color>
+              <color name="colorPrimaryDark">#303F9F</color>
+              <color name="colorAccent">#FF4081</color>
+          </resources>
+          EOF
+          cat > android/app/src/main/res/values/strings.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">KU9 Player</string>
+          </resources>
+          EOF
+          cat > android/app/src/main/res/values/styles.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+                  <item name="colorPrimary">@color/colorPrimary</item>
+                  <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+                  <item name="colorAccent">@color/colorAccent</item>
+              </style>
+              <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.Light.NoActionBar" />
+          </resources>
+          EOF
+
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
@@ -208,7 +184,7 @@ jobs:
 
       - name: Build Debug APK
         working-directory: android
-        run: ./gradlew clean assembleDebug --stacktrace --info --no-daemon
+        run: ./gradlew clean assembleDebug --stacktrace --no-daemon
 
       - name: Build Release APK (unsigned)
         working-directory: android
