@@ -35,7 +35,6 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
-      # 新增：安装 Gradle（以便后续可以运行 gradle wrapper 命令）
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
@@ -58,13 +57,15 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Sync Capacitor
-        run: npx cap sync android
+      - name: Sync Capacitor (clean)
+        run: |
+          npx cap sync android --clean --verbose
+          # 验证关键目录是否存在
+          ls -la android/node_modules/@capacitor/android/ || echo "Warning: Capacitor Android directory missing"
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      # 新增：如果 gradle-wrapper.jar 缺失，则用 gradle 命令生成
       - name: Generate Gradle Wrapper if missing
         working-directory: android
         run: |
