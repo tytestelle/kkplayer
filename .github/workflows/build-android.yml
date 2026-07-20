@@ -53,20 +53,132 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Create minimal Android project
+      - name: Generate Android project with Capacitor
         run: |
-          if [ ! -f "src/index.html" ]; then
-            echo "ERROR: src/index.html not found"
-            exit 1
+          rm -rf android
+          npx cap add android
+          npx cap sync android
+
+      - name: Remove all possible SplashScreen resources
+        run: |
+          # 1. 删除 capacitor-android 模块的所有资源（彻底根除）
+          CAP_RES="android/node_modules/@capacitor/android/capacitor/src/main/res"
+          if [ -d "$CAP_RES" ]; then
+            rm -rf "$CAP_RES"
+            echo "Deleted $CAP_RES"
           fi
 
-          rm -rf android
-          mkdir -p android/app/src/main/java/com/ku9/player
-          mkdir -p android/app/src/main/res/values
-          mkdir -p android/app/src/main/assets/www
-          cp -r src/* android/app/src/main/assets/www/
+          # 2. 删除 app 模块中可能存在的 SplashScreen 相关资源（如果有）
+          APP_RES="android/app/src/main/res"
+          # 清理 values 中可能引用 SplashScreen 的样式
+          if [ -f "$APP_RES/values/styles.xml" ]; then
+            rm -f "$APP_RES/values/styles.xml"
+          fi
+          # 删除 drawable 中的 splash 图片（如果有）
+          find "$APP_RES" -name "*splash*" -type f -delete 2>/dev/null || true
 
-          # ----- settings.gradle -----
+      - name: Write clean AndroidManifest.xml (no SplashScreen theme)
+        run: |
+          cat > android/app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <application
+                  android:allowBackup="true"
+                  android:icon="@mipmap/ic_launcher"
+                  android:label="KU9 Player"
+                  android:roundIcon="@mipmap/ic_launcher_round"
+                  android:supportsRtl="true"
+                  android:theme="@style/AppTheme"
+                  android:usesCleartextTraffic="true">
+                  <activity
+                      android:name="com.ku9.player.MainActivity"
+                      android:exported="true"
+                      android:label="KU9 Player"
+                      android:theme="@style/AppTheme.NoActionBar">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+      - name: Write clean styles.xml (no SplashScreen)
+        run: |
+          mkdir -p android/app/src/main/res/values
+          cat > android/app/src/main/res/values/styles.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+                  <item name="colorPrimary">@color/colorPrimary</item>
+                  <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+                  <item name="colorAccent">@color/colorAccent</item>
+              </style>
+              <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.Light.NoActionBar" />
+          </resources>
+          EOF
+
+      - name: Write basic colors.xml and strings.xml
+        run: |
+          mkdir -p android/app/src/main/res/values
+          cat > android/app/src/main/res/values/colors.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="colorPrimary">#3F51B5</color>
+              <color name="colorPrimaryDark">#303F9F</color>
+              <color name="colorAccent">#FF4081</color>
+          </resources>
+          EOF
+          cat > android/app/src/main/res/values/strings.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">KU9 Player</string>
+          </resources>
+          EOF
+
+      - name: Write app/build.gradle (with namespace and repositories)
+        run: |
+          cat > android/app/build.gradle << 'EOF'
+          apply plugin: 'com.android.application'
+
+          android {
+              namespace "com.ku9.player"
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId "com.ku9.player"
+                  minSdk 22
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0.0"
+              }
+
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                      proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+
+          repositories {
+              google()
+              mavenCentral()
+          }
+
+          dependencies {
+              implementation project(':capacitor-android')
+          }
+          EOF
+
+      - name: Write settings.gradle
+        run: |
           cat > android/settings.gradle << 'EOF'
           pluginManagement {
               repositories {
@@ -80,123 +192,23 @@ jobs:
           }
           rootProject.name = "MyApp"
           include ':app'
+          include ':capacitor-android'
+          project(':capacitor-android').projectDir = new File('../node_modules/@capacitor/android/capacitor')
           EOF
 
-          # ----- app/build.gradle -----
-          cat > android/app/build.gradle << 'EOF'
-          plugins {
-              id 'com.android.application'
-          }
-          android {
-              namespace "com.ku9.player"
-              compileSdk 34
-              defaultConfig {
-                  applicationId "com.ku9.player"
-                  minSdk 22
-                  targetSdk 34
-                  versionCode 1
-                  versionName "1.0.0"
-              }
-              buildTypes {
-                  release {
-                      minifyEnabled false
-                  }
-              }
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }
-          }
-          repositories {
-              google()
-              mavenCentral()
-          }
-          dependencies {
-              implementation 'androidx.appcompat:appcompat:1.6.1'
-              implementation 'androidx.webkit:webkit:1.9.0'
-          }
-          EOF
-
-          # ----- AndroidManifest.xml (使用系统主题，不引用自定义) -----
-          cat > android/app/src/main/AndroidManifest.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="android.permission.INTERNET" />
-              <application
-                  android:allowBackup="true"
-                  android:icon="@mipmap/ic_launcher"
-                  android:label="KU9 Player"
-                  android:roundIcon="@mipmap/ic_launcher_round"
-                  android:supportsRtl="true"
-                  android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
-                  android:usesCleartextTraffic="true">
-                  <activity
-                      android:name="com.ku9.player.MainActivity"
-                      android:exported="true"
-                      android:label="KU9 Player"
-                      android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          EOF
-
-          # ----- 资源文件（提供 SplashScreen 以防万一） -----
-          cat > android/app/src/main/res/values/colors.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <color name="colorPrimary">#3F51B5</color>
-          </resources>
-          EOF
-          cat > android/app/src/main/res/values/strings.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <string name="app_name">KU9 Player</string>
-          </resources>
-          EOF
-          cat > android/app/src/main/res/values/styles.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <!-- 定义 Theme.SplashScreen 以防止缺失错误 -->
-              <style name="Theme.SplashScreen" parent="@android:style/Theme.DeviceDefault.NoActionBar" />
-          </resources>
-          EOF
-
-          # ----- MainActivity.java -----
-          cat > android/app/src/main/java/com/ku9/player/MainActivity.java << 'EOF'
-          package com.ku9.player;
-          import android.os.Bundle;
-          import android.webkit.WebView;
-          import android.webkit.WebViewClient;
-          import androidx.appcompat.app.AppCompatActivity;
-          public class MainActivity extends AppCompatActivity {
-              @Override
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-                  WebView webView = new WebView(this);
-                  webView.getSettings().setJavaScriptEnabled(true);
-                  webView.setWebViewClient(new WebViewClient());
-                  webView.loadUrl("file:///android_asset/www/index.html");
-                  setContentView(webView);
-              }
-          }
-          EOF
-
-          echo "Minimal Android project created with SplashScreen style."
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew
 
       - name: Generate Gradle Wrapper
         working-directory: android
         run: |
-          rm -rf gradle/wrapper
-          gradle wrapper --gradle-version 8.2
-          chmod +x gradlew
+          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            gradle wrapper --gradle-version 8.2
+          fi
 
       - name: Build Debug APK
         working-directory: android
-        run: ./gradlew clean assembleDebug --stacktrace --no-daemon
+        run: ./gradlew clean assembleDebug --stacktrace --info --no-daemon
 
       - name: Build Release APK (unsigned)
         working-directory: android
