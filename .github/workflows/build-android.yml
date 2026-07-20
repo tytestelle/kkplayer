@@ -50,26 +50,24 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
 
-      - name: Create minimal Android project manually
+      - name: Install dependencies
+        run: npm install
+
+      - name: Create minimal Android project
         run: |
-          # 确保 src/index.html 存在
+          # 确保 web 资源存在
           if [ ! -f "src/index.html" ]; then
             echo "ERROR: src/index.html not found"
             exit 1
           fi
 
-          # 删除可能存在的旧 android 目录
           rm -rf android
-
-          # 创建目录结构
           mkdir -p android/app/src/main/java/com/ku9/player
           mkdir -p android/app/src/main/res/values
           mkdir -p android/app/src/main/assets/www
-
-          # 复制 Web 资源到 assets/www
           cp -r src/* android/app/src/main/assets/www/
 
-          # 创建 settings.gradle
+          # ----- settings.gradle (含 pluginManagement 和插件版本) -----
           cat > android/settings.gradle << 'EOF'
           pluginManagement {
               repositories {
@@ -77,14 +75,19 @@ jobs:
                   mavenCentral()
                   gradlePluginPortal()
               }
+              plugins {
+                  id 'com.android.application' version '8.2.0'
+              }
           }
           rootProject.name = "MyApp"
           include ':app'
           EOF
 
-          # 创建 app/build.gradle
+          # ----- app/build.gradle (使用 plugins DSL) -----
           cat > android/app/build.gradle << 'EOF'
-          apply plugin: 'com.android.application'
+          plugins {
+              id 'com.android.application'
+          }
           android {
               compileSdk 34
               defaultConfig {
@@ -106,7 +109,7 @@ jobs:
           }
           EOF
 
-          # 创建 AndroidManifest.xml（无自定义主题，使用系统默认）
+          # ----- AndroidManifest.xml (标准配置) -----
           cat > android/app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -129,7 +132,7 @@ jobs:
           </manifest>
           EOF
 
-          # 创建资源文件
+          # ----- 资源文件 -----
           cat > android/app/src/main/res/values/colors.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
@@ -149,7 +152,7 @@ jobs:
           </resources>
           EOF
 
-          # 创建 MainActivity.java（一个简单的 WebView 加载本地 html）
+          # ----- MainActivity.java (WebView) -----
           cat > android/app/src/main/java/com/ku9/player/MainActivity.java << 'EOF'
           package com.ku9.player;
           import android.os.Bundle;
@@ -169,11 +172,12 @@ jobs:
           }
           EOF
 
-          echo "Minimal Android project created successfully."
+          echo "Minimal Android project created."
 
       - name: Generate Gradle Wrapper
         working-directory: android
         run: |
+          # 使用系统 Gradle 生成 wrapper，指定版本 8.2
           gradle wrapper --gradle-version 8.2
           chmod +x gradlew
 
