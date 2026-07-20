@@ -23,15 +23,26 @@
     "@capacitor/android": "^6.0.0",
     "@capacitor/cli": "^6.0.0",
     "@capacitor/core": "^6.0.0",
-   
     "rimraf": "^5.0.5",
     "serve": "^14.2.3"
+  },
+  "dependencies": {
+    "@capacitor-community/keep-awake": "^6.0.0"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/yourusername/ku9-player.git"
   },
-  "keywords": ["iptv", "player", "m3u8", "hls", "live-streaming", "electron", "capacitor", "android"],
+  "keywords": [
+    "iptv",
+    "player",
+    "m3u8",
+    "hls",
+    "live-streaming",
+    "electron",
+    "capacitor",
+    "android"
+  ],
   "bugs": {
     "url": "https://github.com/yourusername/ku9-player/issues"
   },
