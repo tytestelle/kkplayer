@@ -53,14 +53,12 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      # ========== 全新创建 Android 项目 ==========
       - name: Create fresh Android project
         run: |
           rm -rf android
           npx cap add android
           npx cap sync android
 
-          # ---------- 覆盖所有关键文件 ----------
           # settings.gradle
           cat > android/settings.gradle << 'EOF'
           pluginManagement {
@@ -97,7 +95,7 @@ jobs:
           dependencies { implementation project(':capacitor-android') }
           EOF
 
-          # AndroidManifest.xml：使用系统主题，不引用任何自定义主题
+          # AndroidManifest.xml - 使用最简系统主题，不引用任何自定义资源
           cat > android/app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -108,13 +106,13 @@ jobs:
                   android:label="KU9 Player"
                   android:roundIcon="@mipmap/ic_launcher_round"
                   android:supportsRtl="true"
-                  android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
+                  android:theme="@android:style/Theme.Holo.NoActionBar"
                   android:usesCleartextTraffic="true">
                   <activity
                       android:name="com.ku9.player.MainActivity"
                       android:exported="true"
                       android:label="KU9 Player"
-                      android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+                      android:theme="@android:style/Theme.Holo.NoActionBar">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
@@ -124,7 +122,7 @@ jobs:
           </manifest>
           EOF
 
-          # 创建完整资源文件，包括 styles.xml 定义 Theme.SplashScreen（虽然不引用，但以防万一）
+          # 创建必要资源文件（即使不被引用，也保证存在）
           mkdir -p android/app/src/main/res/values
           cat > android/app/src/main/res/values/colors.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
@@ -141,12 +139,11 @@ jobs:
           cat > android/app/src/main/res/values/styles.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
-              <!-- 定义 Theme.SplashScreen 以防被引用 -->
-              <style name="Theme.SplashScreen" parent="@android:style/Theme.DeviceDefault.NoActionBar" />
+              <style name="Theme.SplashScreen" parent="@android:style/Theme.Holo.NoActionBar" />
           </resources>
           EOF
 
-          echo "All configuration files written."
+          echo "Android project created."
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
