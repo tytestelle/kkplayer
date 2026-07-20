@@ -2,11 +2,11 @@ apply plugin: 'com.android.application'
 
 android {
     namespace "com.ku9.player"
-    compileSdk 34   // 升级到 34
+    compileSdk 34
     defaultConfig {
         applicationId "com.ku9.player"
         minSdk 22
-        targetSdk 34  // 升级到 34
+        targetSdk 34
         versionCode 1
         versionName "1.0.0"
     }
