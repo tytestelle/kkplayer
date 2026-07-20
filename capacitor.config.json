@@ -23,6 +23,7 @@
     "allowMixedContent": true,
     "captureInput": true,
     "webContentsDebuggingEnabled": false
+    "path": "android"
   },
   "ios": {
     "contentInset": "always",
