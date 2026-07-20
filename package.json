@@ -27,7 +27,7 @@
     "serve": "^14.2.3"
   },
   "dependencies": {
-    "@capacitor-community/keep-awake": "^6.0.0"
+    // 这里不再包含 keep-awake，如果你有其他依赖，请保留
   },
   "repository": {
     "type": "git",
