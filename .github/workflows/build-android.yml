@@ -1,42 +1,92 @@
-name: Collect Android Build Logs
+name: Build Android APK
 
 on:
   push:
     branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, master ]
   workflow_dispatch:
 
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  collect-logs:
+  build-android:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-      - uses: actions/setup-java@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: 'gradle'
-      - uses: android-actions/setup-android@v4
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
         with:
           packages: "platform-tools platforms;android-34 build-tools;34.0.0"
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
 
       - name: Install dependencies
         run: npm install
 
-      - name: Generate Android project (Capacitor)
+      - name: Create minimal Android project
         run: |
-          rm -rf android
-          npx cap add android
-          npx cap sync android
+          if [ ! -f "src/index.html" ]; then
+            echo "ERROR: src/index.html not found"
+            exit 1
+          fi
 
-      - name: Apply minimal fixes (as before)
-        run: |
+          rm -rf android
+          mkdir -p android/app/src/main/java/com/ku9/player
+          mkdir -p android/app/src/main/res/values
+          mkdir -p android/app/src/main/assets/www
+          cp -r src/* android/app/src/main/assets/www/
+
+          # ----- settings.gradle -----
+          cat > android/settings.gradle << 'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+              plugins {
+                  id 'com.android.application' version '8.2.0'
+              }
+          }
+          rootProject.name = "MyApp"
+          include ':app'
+          EOF
+
+          # ----- app/build.gradle -----
           cat > android/app/build.gradle << 'EOF'
-          apply plugin: 'com.android.application'
+          plugins {
+              id 'com.android.application'
+          }
           android {
               namespace "com.ku9.player"
               compileSdk 34
@@ -48,53 +98,157 @@ jobs:
                   versionName "1.0.0"
               }
               buildTypes {
-                  release { minifyEnabled false }
+                  release {
+                      minifyEnabled false
+                  }
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_17
                   targetCompatibility JavaVersion.VERSION_17
               }
           }
-          repositories { google(); mavenCentral() }
-          dependencies { implementation project(':capacitor-android') }
+          repositories {
+              google()
+              mavenCentral()
+          }
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'androidx.webkit:webkit:1.9.0'
+          }
           EOF
 
-          rm -rf android/node_modules/@capacitor/android/capacitor/src/main/res
-          # 不要覆盖 AndroidManifest.xml，用 Capacitor 默认的
+          # ----- AndroidManifest.xml (使用系统主题，不引用自定义) -----
+          cat > android/app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <application
+                  android:allowBackup="true"
+                  android:icon="@mipmap/ic_launcher"
+                  android:label="KU9 Player"
+                  android:roundIcon="@mipmap/ic_launcher_round"
+                  android:supportsRtl="true"
+                  android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
+                  android:usesCleartextTraffic="true">
+                  <activity
+                      android:name="com.ku9.player.MainActivity"
+                      android:exported="true"
+                      android:label="KU9 Player"
+                      android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
 
-      - name: Make gradlew executable
-        run: chmod +x android/gradlew
+          # ----- 资源文件（提供 SplashScreen 以防万一） -----
+          cat > android/app/src/main/res/values/colors.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="colorPrimary">#3F51B5</color>
+          </resources>
+          EOF
+          cat > android/app/src/main/res/values/strings.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">KU9 Player</string>
+          </resources>
+          EOF
+          cat > android/app/src/main/res/values/styles.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <!-- 定义 Theme.SplashScreen 以防止缺失错误 -->
+              <style name="Theme.SplashScreen" parent="@android:style/Theme.DeviceDefault.NoActionBar" />
+          </resources>
+          EOF
 
-      - name: Generate wrapper
+          # ----- MainActivity.java -----
+          cat > android/app/src/main/java/com/ku9/player/MainActivity.java << 'EOF'
+          package com.ku9.player;
+          import android.os.Bundle;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import androidx.appcompat.app.AppCompatActivity;
+          public class MainActivity extends AppCompatActivity {
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  WebView webView = new WebView(this);
+                  webView.getSettings().setJavaScriptEnabled(true);
+                  webView.setWebViewClient(new WebViewClient());
+                  webView.loadUrl("file:///android_asset/www/index.html");
+                  setContentView(webView);
+              }
+          }
+          EOF
+
+          echo "Minimal Android project created with SplashScreen style."
+
+      - name: Generate Gradle Wrapper
         working-directory: android
         run: |
-          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
-            gradle wrapper --gradle-version 8.2
-          fi
+          rm -rf gradle/wrapper
+          gradle wrapper --gradle-version 8.2
+          chmod +x gradlew
 
-      - name: Run build with full logging and save output
+      - name: Build Debug APK
         working-directory: android
-        run: |
-          # 将完整日志保存到文件
-          ./gradlew clean assembleDebug --stacktrace --info --no-daemon > build.log 2>&1 || true
-          # 同时输出最后 300 行到控制台（方便快速查看）
-          echo "=== LAST 300 LINES OF BUILD LOG ==="
-          tail -n 300 build.log
+        run: ./gradlew clean assembleDebug --stacktrace --no-daemon
 
-      - name: Package entire android directory (for full inspection)
-        run: |
-          tar -czf android-project.tar.gz android/
+      - name: Build Release APK (unsigned)
+        working-directory: android
+        run: ./gradlew assembleRelease --stacktrace --no-daemon
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || '' }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS || '' }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || '' }}
+        continue-on-error: true
 
-      - name: Upload build log
+      - name: List build outputs
+        run: |
+          echo "=== Debug APK ==="
+          ls -la android/app/build/outputs/apk/debug/ || echo "No debug output"
+          echo "=== Release APK ==="
+          ls -la android/app/build/outputs/apk/release/ || echo "No release output"
+
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: android-build-log
-          path: android/build.log
+          name: ku9-player-android-debug
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn
 
-      - name: Upload full project archive
+      - name: Upload Release APK
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: android-project-archive
-          path: android-project.tar.gz
+          name: ku9-player-android-release
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: warn
+
+  release-android:
+    needs: build-android
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/**/*.apk
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
