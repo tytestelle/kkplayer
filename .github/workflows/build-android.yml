@@ -15,7 +15,7 @@ concurrency:
 jobs:
   build-android:
     runs-on: ubuntu-latest
-    timeout-minutes: 60                # 增加超时，避免 SDK 下载中断
+    timeout-minutes: 60
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -35,12 +35,14 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
+      # 新增：安装 Gradle（以便后续可以运行 gradle wrapper 命令）
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v4    # 推荐使用 v4
+        uses: android-actions/setup-android@v4
         with:
-          # 重要：包名必须用双引号括起来，且用空格分隔，不能换行
           packages: "platform-tools platforms;android-33 build-tools;33.0.0"
-          # 如果项目中的 compileSdkVersion 不是 33，请修改相应的版本号
 
       - name: Cache Gradle
         uses: actions/cache@v4
@@ -54,13 +56,24 @@ jobs:
             gradle-${{ runner.os }}-
 
       - name: Install dependencies
-        run: npm install               # 改为 npm install，解决无 lock 文件问题
+        run: npm install
 
       - name: Sync Capacitor
         run: npx cap sync android
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
+
+      # 新增：如果 gradle-wrapper.jar 缺失，则用 gradle 命令生成
+      - name: Generate Gradle Wrapper if missing
+        working-directory: android
+        run: |
+          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "gradle-wrapper.jar not found, generating..."
+            gradle wrapper
+          else
+            echo "gradle-wrapper.jar exists, skipping generation."
+          fi
 
       - name: Build Debug APK
         working-directory: android
