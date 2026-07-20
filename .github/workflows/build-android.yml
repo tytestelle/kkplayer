@@ -53,7 +53,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Create minimal Android project
+      - name: Create minimal Android project with debug logging
         run: |
           # 确保 web 资源存在
           if [ ! -f "src/index.html" ]; then
@@ -83,7 +83,7 @@ jobs:
           include ':app'
           EOF
 
-          # ----- app/build.gradle （添加了 repositories 和 namespace） -----
+          # ----- app/build.gradle (含 repositories) -----
           cat > android/app/build.gradle << 'EOF'
           plugins {
               id 'com.android.application'
@@ -114,10 +114,11 @@ jobs:
           }
           EOF
 
-          # ----- AndroidManifest.xml -----
+          # ----- AndroidManifest.xml (添加 package) -----
           cat > android/app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="com.ku9.player">
               <uses-permission android:name="android.permission.INTERNET" />
               <application
                   android:allowBackup="true"
@@ -177,7 +178,9 @@ jobs:
           }
           EOF
 
-          echo "Minimal Android project created."
+          # 验证文件结构
+          echo "=== Directory structure ==="
+          find android -type f | sort
 
       - name: Generate Gradle Wrapper
         working-directory: android
@@ -185,10 +188,18 @@ jobs:
           rm -rf gradle/wrapper
           gradle wrapper --gradle-version 8.2
           chmod +x gradlew
+          ./gradlew --version
 
-      - name: Build Debug APK
+      - name: Build Debug APK with full logs
         working-directory: android
-        run: ./gradlew clean assembleDebug --stacktrace --no-daemon
+        run: |
+          ./gradlew clean assembleDebug --stacktrace --info --no-daemon | tee build.log
+          # 如果编译失败，输出日志最后100行
+          if [ $? -ne 0 ]; then
+            echo "=== Build failed, showing last 200 lines of log ==="
+            tail -n 200 build.log
+            exit 1
+          fi
 
       - name: Build Release APK (unsigned)
         working-directory: android
