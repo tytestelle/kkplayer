@@ -7,27 +7,17 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "dev": "npm run dev:web",
+    "install:all": "npm install && cd electron && npm install",
     "dev:web": "npx serve src -l 3000",
     "dev:electron": "cd electron && npm run dev",
-    "build": "npm run build:all",
-    "build:all": "npm run build:web && npm run build:electron && npm run build:android",
-    "build:web": "echo 'Web版本直接使用src目录'",
-    "build:electron": "cd electron && npm run build",
-    "build:electron:win": "cd electron && npm run build:win",
-    "build:electron:mac": "cd electron && npm run build:mac",
-    "build:electron:linux": "cd electron && npm run build:linux",
-    "build:android": "npm run cap:sync && cd android && ./gradlew assembleRelease",
-    "build:android:debug": "npm run cap:sync && cd android && ./gradlew assembleDebug",
-    "cap:init": "npx cap init",
-    "cap:sync": "npx cap sync",
-    "cap:open:android": "npx cap open android",
-    "cap:copy": "npx cap copy",
-    "cap:update": "npx cap update",
-    "install:all": "npm install && cd electron && npm install",
-    "clean": "rimraf dist node_modules electron/node_modules electron/dist android/app/build",
-    "lint": "echo 'Linting...'",
-    "test": "echo 'Tests passed'"
+    "build:electron:win": "cd electron && npx electron-builder --win --x64 --publish never",
+    "build:electron:mac": "cd electron && npx electron-builder --mac --x64 --publish never",
+    "build:electron:linux": "cd electron && npx electron-builder --linux --x64 --publish never",
+    "cap:sync": "npx cap sync android",
+    "cap:open": "npx cap open android",
+    "build:android:debug": "npm run cap:sync && cd android && ./gradlew assembleDebug --stacktrace",
+    "build:android:release": "npm run cap:sync && cd android && ./gradlew assembleRelease --stacktrace",
+    "clean": "rimraf dist node_modules electron/node_modules electron/dist android/app/build android/.gradle"
   },
   "devDependencies": {
     "@capacitor/android": "^6.0.0",
@@ -41,18 +31,7 @@
     "type": "git",
     "url": "https://github.com/yourusername/ku9-player.git"
   },
-  "keywords": [
-    "iptv",
-    "player",
-    "m3u8",
-    "hls",
-    "live-streaming",
-    "electron",
-    "capacitor",
-    "android",
-    "desktop",
-    "open-source"
-  ],
+  "keywords": ["iptv", "player", "m3u8", "hls", "live-streaming", "electron", "capacitor", "android"],
   "bugs": {
     "url": "https://github.com/yourusername/ku9-player/issues"
   },
