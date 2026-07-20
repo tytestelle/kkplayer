@@ -54,7 +54,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      # ========== 新增：彻底重建 Android 项目 ==========
+      # ========== 彻底重建 Android 项目 ==========
       - name: Regenerate Android project from scratch
         run: |
           echo "Removing existing android directory..."
@@ -65,39 +65,75 @@ jobs:
           npx cap sync android
           echo "Android project regenerated."
 
-      # ========== 自动修正 build.gradle 和 AndroidManifest.xml ==========
-      - name: Fix Android build configuration
+      # ========== 用标准模板覆盖 settings.gradle 和 app/build.gradle ==========
+      - name: Override Gradle files with correct templates
         run: |
-          # 修正 build.gradle：添加 namespace，设置 compileSdk 和 targetSdk 为 34
-          BUILD_GRADLE="android/app/build.gradle"
-          if [ -f "$BUILD_GRADLE" ]; then
-            # 用 sed 在 android { 块内添加 namespace（如果不存在）
-            if ! grep -q "namespace " "$BUILD_GRADLE"; then
-              sed -i '/android {/a \    namespace "com.ku9.player"' "$BUILD_GRADLE"
-            fi
-            # 确保 compileSdk 为 34
-            sed -i 's/compileSdk [0-9]*/compileSdk 34/' "$BUILD_GRADLE"
-            # 确保 targetSdk 为 34
-            sed -i 's/targetSdk [0-9]*/targetSdk 34/' "$BUILD_GRADLE"
-            echo "build.gradle updated."
-          else
-            echo "Warning: $BUILD_GRADLE not found."
-          fi
+          # 覆盖 settings.gradle
+          cat > android/settings.gradle << 'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          rootProject.name = "MyApp"
+          include ':app'
+          include ':capacitor-android'
+          project(':capacitor-android').projectDir = new File('../node_modules/@capacitor/android/capacitor')
+          EOF
 
-          # 修正 AndroidManifest.xml：删除 package 属性
+          # 覆盖 app/build.gradle
+          cat > android/app/build.gradle << 'EOF'
+          apply plugin: 'com.android.application'
+
+          android {
+              namespace "com.ku9.player"
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId "com.ku9.player"
+                  minSdk 22
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0.0"
+              }
+
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                      proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+
+          repositories {
+              google()
+              mavenCentral()
+          }
+
+          dependencies {
+              implementation project(':capacitor-android')
+          }
+          EOF
+
+          echo "Gradle files overwritten with correct templates."
+
+      # ========== 修正 AndroidManifest.xml ==========
+      - name: Fix AndroidManifest.xml
+        run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST" ]; then
-            # 用 sed 删除 manifest 标签中的 package 属性
+            # 删除 package 属性
             sed -i 's/package="[^"]*"//' "$MANIFEST"
-            echo "AndroidManifest.xml updated."
+            echo "AndroidManifest.xml package attribute removed."
           else
             echo "Warning: $MANIFEST not found."
           fi
-
-          # 额外：确保有 colors.xml、strings.xml、styles.xml（模板自带，但以防万一）
-          mkdir -p android/app/src/main/res/values
-          # 如果缺失则创建基本文件（但模板应已存在）
-      # ====================================================
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
