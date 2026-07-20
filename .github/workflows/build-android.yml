@@ -93,9 +93,50 @@ jobs:
             echo "gradle-wrapper.jar exists, skipping generation."
           fi
 
+      - name: Create missing resource files
+        run: |
+          mkdir -p android/app/src/main/res/values
+          # colors.xml
+          if [ ! -f android/app/src/main/res/values/colors.xml ]; then
+            cat > android/app/src/main/res/values/colors.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <color name="colorPrimary">#0a0a0f</color>
+            <color name="colorPrimaryDark">#0a0a0f</color>
+            <color name="colorAccent">#FF4081</color>
+        </resources>
+        EOF
+          fi
+          # strings.xml
+          if [ ! -f android/app/src/main/res/values/strings.xml ]; then
+            cat > android/app/src/main/res/values/strings.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <string name="app_name">KU9 Player</string>
+            <string name="title_activity_main">KU9 Player</string>
+        </resources>
+        EOF
+          fi
+          # styles.xml
+          if [ ! -f android/app/src/main/res/values/styles.xml ]; then
+            cat > android/app/src/main/res/values/styles.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+                <item name="colorPrimary">@color/colorPrimary</item>
+                <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+                <item name="colorAccent">@color/colorAccent</item>
+            </style>
+            <style name="AppTheme.NoActionBarLaunch" parent="Theme.AppCompat.Light.NoActionBar">
+                <item name="android:windowBackground">@color/colorPrimary</item>
+            </style>
+        </resources>
+        EOF
+          fi
+
       - name: Build Debug APK
         working-directory: android
-        run: ./gradlew assembleDebug --stacktrace --info --no-daemon   # 添加了 --info
+        run: ./gradlew assembleDebug --stacktrace --info --no-daemon
 
       - name: Build Release APK (unsigned)
         working-directory: android
