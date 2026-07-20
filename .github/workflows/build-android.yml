@@ -57,8 +57,25 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      # 确保 @capacitor/android 已被安装（如果缺失则补装）
+      - name: Ensure Capacitor Android package
+        run: |
+          if [ ! -d "node_modules/@capacitor/android" ]; then
+            echo "Installing @capacitor/android..."
+            npm install @capacitor/android@^6.0.0
+          fi
+
       - name: Sync Capacitor
-        run: npx cap sync android   # 正确命令，不带额外参数
+        run: npx cap sync android
+
+      # 如果同步后目录仍缺失，则手动创建软链接（解决 Gradle 找不到路径的问题）
+      - name: Fix missing capacitor-android directory
+        run: |
+          if [ ! -d "android/node_modules/@capacitor/android/capacitor" ]; then
+            echo "Capacitor Android directory missing, creating symlink..."
+            mkdir -p android/node_modules/@capacitor/android
+            ln -s ../../../node_modules/@capacitor/android/capacitor android/node_modules/@capacitor/android/capacitor
+          fi
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
