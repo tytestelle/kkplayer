@@ -35,9 +35,6 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
         with:
@@ -75,7 +72,6 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
-      # 如果同步后目录仍缺失，则手动创建软链接（解决 Gradle 找不到路径的问题）
       - name: Fix missing capacitor-android directory
         run: |
           if [ ! -d "android/node_modules/@capacitor/android/capacitor" ]; then
@@ -83,18 +79,17 @@ jobs:
             mkdir -p android/node_modules/@capacitor/android
             ln -s ../../../node_modules/@capacitor/android/capacitor android/node_modules/@capacitor/android/capacitor
           fi
-          # 打印 android 目录结构以便调试
-          ls -la android/
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      - name: Generate Gradle Wrapper if missing
+      - name: Generate Gradle Wrapper with compatible version
         working-directory: android
         run: |
           if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
-            echo "gradle-wrapper.jar not found, generating..."
-            gradle wrapper
+            echo "Generating Gradle wrapper with version 8.2..."
+            # 使用 gradle 命令生成 wrapper，并指定版本 8.2（与 AGP 8.2.0 兼容）
+            gradle wrapper --gradle-version 8.2
           else
             echo "gradle-wrapper.jar exists, skipping generation."
           fi
