@@ -57,13 +57,20 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      # 确保 @capacitor/android 已被安装（如果缺失则补装）
       - name: Ensure Capacitor Android package
         run: |
           if [ ! -d "node_modules/@capacitor/android" ]; then
             echo "Installing @capacitor/android..."
             npm install @capacitor/android@^6.0.0
           fi
+
+      - name: Verify web assets exist
+        run: |
+          if [ ! -f "src/index.html" ]; then
+            echo "ERROR: src/index.html not found!"
+            exit 1
+          fi
+          echo "Web assets found in src/"
 
       - name: Sync Capacitor
         run: npx cap sync android
@@ -76,6 +83,8 @@ jobs:
             mkdir -p android/node_modules/@capacitor/android
             ln -s ../../../node_modules/@capacitor/android/capacitor android/node_modules/@capacitor/android/capacitor
           fi
+          # 打印 android 目录结构以便调试
+          ls -la android/
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
