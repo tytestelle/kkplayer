@@ -50,34 +50,42 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
 
-      - name: Install dependencies
-        run: npm install
-
-      - name: Create fresh Android project
+      - name: Create minimal Android project manually
         run: |
-          rm -rf android
-          npx cap add android
-          npx cap sync android
-
-          # 彻底清除 capacitor-android 模块的所有资源
-          CAP_MODULE="android/node_modules/@capacitor/android/capacitor"
-          if [ -d "$CAP_MODULE" ]; then
-            rm -rf "$CAP_MODULE/src/main/res"
-            # 清空其 AndroidManifest.xml
-            cat > "$CAP_MODULE/src/main/AndroidManifest.xml" << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android" />
-          EOF
-            # 删除任何可能存在的 values.xml
-            find "$CAP_MODULE" -name "*.xml" -type f -delete
-            echo "Cleaned capacitor-android module."
+          # 确保 src/index.html 存在
+          if [ ! -f "src/index.html" ]; then
+            echo "ERROR: src/index.html not found"
+            exit 1
           fi
 
-          # ---- 覆盖 app 模块配置 ----
+          # 删除可能存在的旧 android 目录
+          rm -rf android
+
+          # 创建目录结构
+          mkdir -p android/app/src/main/java/com/ku9/player
+          mkdir -p android/app/src/main/res/values
+          mkdir -p android/app/src/main/assets/www
+
+          # 复制 Web 资源到 assets/www
+          cp -r src/* android/app/src/main/assets/www/
+
+          # 创建 settings.gradle
+          cat > android/settings.gradle << 'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          rootProject.name = "MyApp"
+          include ':app'
+          EOF
+
+          # 创建 app/build.gradle
           cat > android/app/build.gradle << 'EOF'
           apply plugin: 'com.android.application'
           android {
-              namespace "com.ku9.player"
               compileSdk 34
               defaultConfig {
                   applicationId "com.ku9.player"
@@ -87,32 +95,18 @@ jobs:
                   versionName "1.0.0"
               }
               buildTypes {
-                  release { minifyEnabled false }
-              }
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }
-              aaptOptions {
-                  cruncherEnabled = false
-                  useNewCruncher = false
+                  release {
+                      minifyEnabled false
+                  }
               }
           }
-          repositories { google(); mavenCentral() }
-          dependencies { implementation project(':capacitor-android') }
-          EOF
-
-          cat > android/settings.gradle << 'EOF'
-          pluginManagement {
-              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'androidx.webkit:webkit:1.9.0'
           }
-          rootProject.name = "MyApp"
-          include ':app'
-          include ':capacitor-android'
-          project(':capacitor-android').projectDir = new File('../node_modules/@capacitor/android/capacitor')
           EOF
 
-          # ---- AndroidManifest.xml 完全不使用自定义主题 ----
+          # 创建 AndroidManifest.xml（无自定义主题，使用系统默认）
           cat > android/app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -121,13 +115,11 @@ jobs:
                   android:allowBackup="true"
                   android:icon="@mipmap/ic_launcher"
                   android:label="KU9 Player"
-                  android:roundIcon="@mipmap/ic_launcher_round"
                   android:supportsRtl="true"
-                  android:usesCleartextTraffic="true">
+                  android:theme="@style/AppTheme">
                   <activity
-                      android:name="com.ku9.player.MainActivity"
-                      android:exported="true"
-                      android:label="KU9 Player">
+                      android:name=".MainActivity"
+                      android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
@@ -137,8 +129,7 @@ jobs:
           </manifest>
           EOF
 
-          # ---- 创建资源文件，同时显式定义 Theme.SplashScreen 以防被引用 ----
-          mkdir -p android/app/src/main/res/values
+          # 创建资源文件
           cat > android/app/src/main/res/values/colors.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
@@ -154,22 +145,37 @@ jobs:
           cat > android/app/src/main/res/values/styles.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
-              <!-- 显式定义 Theme.SplashScreen，以防引用，使用系统默认 -->
-              <style name="Theme.SplashScreen" parent="@android:style/Theme.DeviceDefault.NoActionBar" />
+              <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar" />
           </resources>
           EOF
 
-          echo "All configurations applied."
+          # 创建 MainActivity.java（一个简单的 WebView 加载本地 html）
+          cat > android/app/src/main/java/com/ku9/player/MainActivity.java << 'EOF'
+          package com.ku9.player;
+          import android.os.Bundle;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import androidx.appcompat.app.AppCompatActivity;
+          public class MainActivity extends AppCompatActivity {
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  WebView webView = new WebView(this);
+                  webView.getSettings().setJavaScriptEnabled(true);
+                  webView.setWebViewClient(new WebViewClient());
+                  webView.loadUrl("file:///android_asset/www/index.html");
+                  setContentView(webView);
+              }
+          }
+          EOF
 
-      - name: Make gradlew executable
-        run: chmod +x android/gradlew
+          echo "Minimal Android project created successfully."
 
       - name: Generate Gradle Wrapper
         working-directory: android
         run: |
-          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
-            gradle wrapper --gradle-version 8.2
-          fi
+          gradle wrapper --gradle-version 8.2
+          chmod +x gradlew
 
       - name: Build Debug APK
         working-directory: android
