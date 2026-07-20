@@ -53,24 +53,27 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Create fresh Android project and strip all custom resources
+      - name: Create fresh Android project
         run: |
           rm -rf android
           npx cap add android
           npx cap sync android
 
-          # ---- 1. 删除 capacitor-android 模块中的资源（根源消除） ----
+          # 彻底清除 capacitor-android 模块的所有资源
           CAP_MODULE="android/node_modules/@capacitor/android/capacitor"
           if [ -d "$CAP_MODULE" ]; then
             rm -rf "$CAP_MODULE/src/main/res"
+            # 清空其 AndroidManifest.xml
             cat > "$CAP_MODULE/src/main/AndroidManifest.xml" << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android" />
           EOF
+            # 删除任何可能存在的 values.xml
+            find "$CAP_MODULE" -name "*.xml" -type f -delete
             echo "Cleaned capacitor-android module."
           fi
 
-          # ---- 2. 覆盖 app 模块的所有配置 ----
+          # ---- 覆盖 app 模块配置 ----
           cat > android/app/build.gradle << 'EOF'
           apply plugin: 'com.android.application'
           android {
@@ -90,7 +93,6 @@ jobs:
                   sourceCompatibility JavaVersion.VERSION_17
                   targetCompatibility JavaVersion.VERSION_17
               }
-              // 忽略资源处理错误
               aaptOptions {
                   cruncherEnabled = false
                   useNewCruncher = false
@@ -110,7 +112,7 @@ jobs:
           project(':capacitor-android').projectDir = new File('../node_modules/@capacitor/android/capacitor')
           EOF
 
-          # ---- 3. AndroidManifest.xml 完全不使用任何主题 ----
+          # ---- AndroidManifest.xml 完全不使用自定义主题 ----
           cat > android/app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -135,7 +137,7 @@ jobs:
           </manifest>
           EOF
 
-          # ---- 4. 创建最简资源（仅保证编译通过） ----
+          # ---- 创建资源文件，同时显式定义 Theme.SplashScreen 以防被引用 ----
           mkdir -p android/app/src/main/res/values
           cat > android/app/src/main/res/values/colors.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
@@ -149,7 +151,13 @@ jobs:
               <string name="app_name">KU9 Player</string>
           </resources>
           EOF
-          # 不创建 styles.xml
+          cat > android/app/src/main/res/values/styles.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <!-- 显式定义 Theme.SplashScreen，以防引用，使用系统默认 -->
+              <style name="Theme.SplashScreen" parent="@android:style/Theme.DeviceDefault.NoActionBar" />
+          </resources>
+          EOF
 
           echo "All configurations applied."
 
