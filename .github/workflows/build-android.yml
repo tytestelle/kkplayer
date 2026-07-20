@@ -53,13 +53,14 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Create fresh Android project
+      - name: Create clean Android project
         run: |
           rm -rf android
           npx cap add android
           npx cap sync android
 
-          # settings.gradle
+          # 彻底清除可能存在的自定义资源，只保留最简配置
+          # 用 cat 直接覆盖所有关键文件（不依赖任何已有内容）
           cat > android/settings.gradle << 'EOF'
           pluginManagement {
               repositories { google(); mavenCentral(); gradlePluginPortal() }
@@ -70,7 +71,6 @@ jobs:
           project(':capacitor-android').projectDir = new File('../node_modules/@capacitor/android/capacitor')
           EOF
 
-          # app/build.gradle
           cat > android/app/build.gradle << 'EOF'
           apply plugin: 'com.android.application'
           android {
@@ -95,7 +95,7 @@ jobs:
           dependencies { implementation project(':capacitor-android') }
           EOF
 
-          # AndroidManifest.xml - 使用最简系统主题，不引用任何自定义资源
+          # AndroidManifest.xml：完全不使用任何主题，让系统决定默认样式
           cat > android/app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -106,13 +106,13 @@ jobs:
                   android:label="KU9 Player"
                   android:roundIcon="@mipmap/ic_launcher_round"
                   android:supportsRtl="true"
-                  android:theme="@android:style/Theme.Holo.NoActionBar"
                   android:usesCleartextTraffic="true">
+                  <!-- 不设置 theme，使用系统默认 -->
                   <activity
                       android:name="com.ku9.player.MainActivity"
                       android:exported="true"
-                      android:label="KU9 Player"
-                      android:theme="@android:style/Theme.Holo.NoActionBar">
+                      android:label="KU9 Player">
+                      <!-- 不设置主题 -->
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
@@ -122,7 +122,7 @@ jobs:
           </manifest>
           EOF
 
-          # 创建必要资源文件（即使不被引用，也保证存在）
+          # 创建最简资源，不包含任何自定义主题
           mkdir -p android/app/src/main/res/values
           cat > android/app/src/main/res/values/colors.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
@@ -136,14 +136,9 @@ jobs:
               <string name="app_name">KU9 Player</string>
           </resources>
           EOF
-          cat > android/app/src/main/res/values/styles.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <style name="Theme.SplashScreen" parent="@android:style/Theme.Holo.NoActionBar" />
-          </resources>
-          EOF
+          # 不创建 styles.xml，因为不需要任何自定义样式
 
-          echo "Android project created."
+          echo "Clean Android project created with no custom themes."
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
@@ -157,11 +152,11 @@ jobs:
 
       - name: Build Debug APK
         working-directory: android
-        run: ./gradlew clean assembleDebug --stacktrace
+        run: ./gradlew clean assembleDebug --stacktrace --no-daemon
 
       - name: Build Release APK (unsigned)
         working-directory: android
-        run: ./gradlew assembleRelease --stacktrace
+        run: ./gradlew assembleRelease --stacktrace --no-daemon
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || '' }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS || '' }}
