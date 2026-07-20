@@ -53,41 +53,29 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Create minimal Android project with debug logging
+      - name: Create minimal Android project
         run: |
-          # 确保 web 资源存在
           if [ ! -f "src/index.html" ]; then
             echo "ERROR: src/index.html not found"
             exit 1
           fi
-
           rm -rf android
           mkdir -p android/app/src/main/java/com/ku9/player
           mkdir -p android/app/src/main/res/values
           mkdir -p android/app/src/main/assets/www
           cp -r src/* android/app/src/main/assets/www/
 
-          # ----- settings.gradle -----
           cat > android/settings.gradle << 'EOF'
           pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-              plugins {
-                  id 'com.android.application' version '8.2.0'
-              }
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+              plugins { id 'com.android.application' version '8.2.0' }
           }
           rootProject.name = "MyApp"
           include ':app'
           EOF
 
-          # ----- app/build.gradle (含 repositories) -----
           cat > android/app/build.gradle << 'EOF'
-          plugins {
-              id 'com.android.application'
-          }
+          plugins { id 'com.android.application' }
           android {
               namespace "com.ku9.player"
               compileSdk 34
@@ -99,22 +87,16 @@ jobs:
                   versionName "1.0.0"
               }
               buildTypes {
-                  release {
-                      minifyEnabled false
-                  }
+                  release { minifyEnabled false }
               }
           }
-          repositories {
-              google()
-              mavenCentral()
-          }
+          repositories { google(); mavenCentral() }
           dependencies {
               implementation 'androidx.appcompat:appcompat:1.6.1'
               implementation 'androidx.webkit:webkit:1.9.0'
           }
           EOF
 
-          # ----- AndroidManifest.xml (添加 package) -----
           cat > android/app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android"
@@ -126,9 +108,7 @@ jobs:
                   android:label="KU9 Player"
                   android:supportsRtl="true"
                   android:theme="@style/AppTheme">
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true">
+                  <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
@@ -138,27 +118,19 @@ jobs:
           </manifest>
           EOF
 
-          # ----- 资源文件 -----
           cat > android/app/src/main/res/values/colors.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <color name="colorPrimary">#3F51B5</color>
-          </resources>
+          <resources><color name="colorPrimary">#3F51B5</color></resources>
           EOF
           cat > android/app/src/main/res/values/strings.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <string name="app_name">KU9 Player</string>
-          </resources>
+          <resources><string name="app_name">KU9 Player</string></resources>
           EOF
           cat > android/app/src/main/res/values/styles.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar" />
-          </resources>
+          <resources><style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar" /></resources>
           EOF
 
-          # ----- MainActivity.java -----
           cat > android/app/src/main/java/com/ku9/player/MainActivity.java << 'EOF'
           package com.ku9.player;
           import android.os.Bundle;
@@ -178,44 +150,28 @@ jobs:
           }
           EOF
 
-          # 验证文件结构
-          echo "=== Directory structure ==="
-          find android -type f | sort
-
       - name: Generate Gradle Wrapper
         working-directory: android
         run: |
           rm -rf gradle/wrapper
           gradle wrapper --gradle-version 8.2
           chmod +x gradlew
-          ./gradlew --version
 
-      - name: Build Debug APK with full logs
+      - name: Build both Debug and Release APKs
         working-directory: android
         run: |
-          ./gradlew clean assembleDebug --stacktrace --info --no-daemon | tee build.log
-          # 如果编译失败，输出日志最后100行
-          if [ $? -ne 0 ]; then
-            echo "=== Build failed, showing last 200 lines of log ==="
-            tail -n 200 build.log
-            exit 1
-          fi
+          ./gradlew clean
+          ./gradlew assembleDebug --stacktrace --no-daemon
+          ./gradlew assembleRelease --stacktrace --no-daemon
 
-      - name: Build Release APK (unsigned)
-        working-directory: android
-        run: ./gradlew assembleRelease --stacktrace --no-daemon
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || '' }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS || '' }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || '' }}
-        continue-on-error: true
-
-      - name: List build outputs
+      - name: Verify APK generation
         run: |
-          echo "=== Debug APK ==="
-          ls -la android/app/build/outputs/apk/debug/ || echo "No debug output"
-          echo "=== Release APK ==="
-          ls -la android/app/build/outputs/apk/release/ || echo "No release output"
+          echo "=== Searching for APK files ==="
+          find android -name "*.apk" -type f || echo "No APK found!"
+          echo "=== Debug APK directory ==="
+          ls -la android/app/build/outputs/apk/debug/ || echo "No debug APK"
+          echo "=== Release APK directory ==="
+          ls -la android/app/build/outputs/apk/release/ || echo "No release APK"
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
