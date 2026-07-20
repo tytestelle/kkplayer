@@ -57,11 +57,8 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Sync Capacitor (clean)
-        run: |
-          npx cap sync android --clean --verbose
-          # 验证关键目录是否存在
-          ls -la android/node_modules/@capacitor/android/ || echo "Warning: Capacitor Android directory missing"
+      - name: Sync Capacitor
+        run: npx cap sync android --verbose   # 移除 --clean
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
