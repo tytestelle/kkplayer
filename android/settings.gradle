@@ -5,13 +5,9 @@ pluginManagement {
         gradlePluginPortal()
     }
 }
-dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-    repositories {
-        google()
-        mavenCentral()
-    }
-}
+
+// 移除 dependencyResolutionManagement 块，避免与 Capacitor 插件冲突
+
 rootProject.name = "MyApp"
 include ':app'
 include ':capacitor-android'
