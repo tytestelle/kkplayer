@@ -95,7 +95,7 @@ jobs:
 
       - name: Build Debug APK
         working-directory: android
-        run: ./gradlew assembleDebug --stacktrace --no-daemon
+        run: ./gradlew assembleDebug --stacktrace --info --no-daemon   # 添加了 --info
 
       - name: Build Release APK (unsigned)
         working-directory: android
