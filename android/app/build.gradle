@@ -1,12 +1,12 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace "com.ku9.player"   // 必须指定 namespace，与 manifest 中的 package 一致
-    compileSdk 33
+    namespace "com.ku9.player"
+    compileSdk 34   // 升级到 34
     defaultConfig {
         applicationId "com.ku9.player"
         minSdk 22
-        targetSdk 33
+        targetSdk 34  // 升级到 34
         versionCode 1
         versionName "1.0.0"
     }
@@ -30,5 +30,4 @@ repositories {
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation project(':capacitor-android')
-    // 其他依赖由 Capacitor 自动管理，通常不需要显式添加
 }
