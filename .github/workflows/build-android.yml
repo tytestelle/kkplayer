@@ -15,8 +15,7 @@ concurrency:
 jobs:
   build-android:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    
+    timeout-minutes: 60          # 增加到 60 分钟，避免 SDK 下载超时
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -38,6 +37,13 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # 明确指定需要安装的包，避免自动拉取过多组件导致超时
+          # 请根据你项目实际的 compileSdkVersion 调整 platforms 和 build-tools 版本
+          packages: |
+            platform-tools
+            platforms;android-33
+            build-tools;33.0.0
 
       - name: Cache Gradle
         uses: actions/cache@v4
@@ -51,7 +57,7 @@ jobs:
             gradle-${{ runner.os }}-
 
       - name: Install dependencies
-        run: npm install   # 原来是 npm ci，改为 npm install 以允许没有 lock 文件
+        run: npm install          # 原为 npm ci，现改为 npm install 允许无 lock 文件
 
       - name: Sync Capacitor
         run: npx cap sync android
