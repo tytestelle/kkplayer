@@ -8,9 +8,14 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+concurrency:
+  group: electron-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-windows:
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -22,29 +27,38 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
+        shell: pwsh
         run: |
           npm ci
           cd electron
           npm ci
 
       - name: Build Windows App
+        shell: pwsh
         run: |
           cd electron
-          npm run build:win
+          npx electron-builder --win --x64 --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: List outputs
+        shell: pwsh
+        run: Get-ChildItem -Path dist/electron -Recurse
+
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: ku9-player-windows
           path: |
             dist/electron/*.exe
             dist/electron/*.zip
-            dist/electron/latest.yml
+            dist/electron/*.yml
+          if-no-files-found: warn
 
   build-macos:
     runs-on: macos-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -64,21 +78,24 @@ jobs:
       - name: Build macOS App
         run: |
           cd electron
-          npm run build:mac
+          npx electron-builder --mac --x64 --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: ku9-player-macos
           path: |
             dist/electron/*.dmg
             dist/electron/*.zip
-            dist/electron/latest-mac.yml
+            dist/electron/*.yml
+          if-no-files-found: warn
 
   build-linux:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -98,24 +115,28 @@ jobs:
       - name: Build Linux App
         run: |
           cd electron
-          npm run build:linux
+          npx electron-builder --linux --x64 --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: ku9-player-linux
           path: |
             dist/electron/*.AppImage
             dist/electron/*.deb
             dist/electron/*.zip
-            dist/electron/latest-linux.yml
+            dist/electron/*.yml
+          if-no-files-found: warn
 
   release:
     needs: [build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -123,7 +144,7 @@ jobs:
           path: artifacts
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: artifacts/**/*
           draft: false
