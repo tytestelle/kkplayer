@@ -67,7 +67,7 @@ jobs:
           mkdir -p android/app/src/main/assets/www
           cp -r src/* android/app/src/main/assets/www/
 
-          # ----- settings.gradle (含 pluginManagement 和插件版本) -----
+          # ----- settings.gradle -----
           cat > android/settings.gradle << 'EOF'
           pluginManagement {
               repositories {
@@ -83,12 +83,13 @@ jobs:
           include ':app'
           EOF
 
-          # ----- app/build.gradle (使用 plugins DSL) -----
+          # ----- app/build.gradle （添加了 namespace） -----
           cat > android/app/build.gradle << 'EOF'
           plugins {
               id 'com.android.application'
           }
           android {
+              namespace "com.ku9.player"
               compileSdk 34
               defaultConfig {
                   applicationId "com.ku9.player"
@@ -109,7 +110,7 @@ jobs:
           }
           EOF
 
-          # ----- AndroidManifest.xml (标准配置) -----
+          # ----- AndroidManifest.xml -----
           cat > android/app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -152,7 +153,7 @@ jobs:
           </resources>
           EOF
 
-          # ----- MainActivity.java (WebView) -----
+          # ----- MainActivity.java -----
           cat > android/app/src/main/java/com/ku9/player/MainActivity.java << 'EOF'
           package com.ku9.player;
           import android.os.Bundle;
@@ -177,9 +178,12 @@ jobs:
       - name: Generate Gradle Wrapper
         working-directory: android
         run: |
-          # 使用系统 Gradle 生成 wrapper，指定版本 8.2
+          # 清理旧的 wrapper 文件，确保生成正确版本
+          rm -rf gradle/wrapper
           gradle wrapper --gradle-version 8.2
           chmod +x gradlew
+          # 验证 wrapper 版本
+          ./gradlew --version
 
       - name: Build Debug APK
         working-directory: android
