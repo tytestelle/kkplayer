@@ -46,41 +46,31 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-            android/.gradle
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*') }}
           restore-keys: |
             gradle-${{ runner.os }}-
 
       - name: Install dependencies
         run: npm install
 
-      # 彻底重置 Android 项目
-      - name: Reset Android project
+      # ========== 全新创建 Android 项目 ==========
+      - name: Create fresh Android project
         run: |
+          # 删除可能存在的旧目录
           rm -rf android
+          
+          # 使用 Capacitor 创建 Android 项目
           npx cap add android
           npx cap sync android
-
-      # 写入极简配置（使用系统默认主题，不依赖任何自定义资源）
-      - name: Write minimal Android configuration
-        run: |
-          # settings.gradle
-          cat > android/settings.gradle << 'EOF'
-          pluginManagement {
-              repositories { google(); mavenCentral(); gradlePluginPortal() }
-          }
-          rootProject.name = "MyApp"
-          include ':app'
-          include ':capacitor-android'
-          project(':capacitor-android').projectDir = new File('../node_modules/@capacitor/android/capacitor')
-          EOF
-
-          # app/build.gradle
+          
+          # 完全覆盖 app/build.gradle
           cat > android/app/build.gradle << 'EOF'
           apply plugin: 'com.android.application'
+
           android {
               namespace "com.ku9.player"
               compileSdk 34
+
               defaultConfig {
                   applicationId "com.ku9.player"
                   minSdk 22
@@ -88,19 +78,45 @@ jobs:
                   versionCode 1
                   versionName "1.0.0"
               }
+
               buildTypes {
-                  release { minifyEnabled false }
+                  release {
+                      minifyEnabled false
+                      proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+                  }
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_17
                   targetCompatibility JavaVersion.VERSION_17
               }
           }
-          repositories { google(); mavenCentral() }
-          dependencies { implementation project(':capacitor-android') }
+
+          repositories {
+              google()
+              mavenCentral()
+          }
+
+          dependencies {
+              implementation project(':capacitor-android')
+          }
           EOF
 
-          # AndroidManifest.xml：完全使用系统主题
+          # 完全覆盖 settings.gradle
+          cat > android/settings.gradle << 'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          rootProject.name = "MyApp"
+          include ':app'
+          include ':capacitor-android'
+          project(':capacitor-android').projectDir = new File('../node_modules/@capacitor/android/capacitor')
+          EOF
+
+          # 完全覆盖 AndroidManifest.xml - 使用系统主题
           cat > android/app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -127,14 +143,12 @@ jobs:
           </manifest>
           EOF
 
-          # 创建最小的资源文件（即使不被引用，也确保存在）
+          # 创建最小资源文件
           mkdir -p android/app/src/main/res/values
           cat > android/app/src/main/res/values/colors.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
               <color name="colorPrimary">#3F51B5</color>
-              <color name="colorPrimaryDark">#303F9F</color>
-              <color name="colorAccent">#FF4081</color>
           </resources>
           EOF
           cat > android/app/src/main/res/values/strings.xml << 'EOF'
@@ -144,7 +158,7 @@ jobs:
           </resources>
           EOF
 
-          echo "Minimal configuration written."
+          echo "Android project created with minimal configuration"
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
