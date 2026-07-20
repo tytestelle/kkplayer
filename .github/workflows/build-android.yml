@@ -54,24 +54,20 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      # ========== 重建 Android 项目 ==========
-      - name: Regenerate Android project from scratch
+      # 彻底重置 Android 项目
+      - name: Reset Android project
         run: |
           rm -rf android
           npx cap add android
           npx cap sync android
 
-      # ========== 覆盖所有 Gradle 和 Manifest 文件，使用最简配置 ==========
-      - name: Override with minimal working configuration
+      # 写入极简配置（使用系统默认主题，不依赖任何自定义资源）
+      - name: Write minimal Android configuration
         run: |
           # settings.gradle
           cat > android/settings.gradle << 'EOF'
           pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
           }
           rootProject.name = "MyApp"
           include ':app'
@@ -82,11 +78,9 @@ jobs:
           # app/build.gradle
           cat > android/app/build.gradle << 'EOF'
           apply plugin: 'com.android.application'
-
           android {
               namespace "com.ku9.player"
               compileSdk 34
-
               defaultConfig {
                   applicationId "com.ku9.player"
                   minSdk 22
@@ -94,30 +88,19 @@ jobs:
                   versionCode 1
                   versionName "1.0.0"
               }
-
               buildTypes {
-                  release {
-                      minifyEnabled false
-                      proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-                  }
+                  release { minifyEnabled false }
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_17
                   targetCompatibility JavaVersion.VERSION_17
               }
           }
-
-          repositories {
-              google()
-              mavenCentral()
-          }
-
-          dependencies {
-              implementation project(':capacitor-android')
-          }
+          repositories { google(); mavenCentral() }
+          dependencies { implementation project(':capacitor-android') }
           EOF
 
-          # AndroidManifest.xml：使用系统主题，不引用任何自定义资源
+          # AndroidManifest.xml：完全使用系统主题
           cat > android/app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -144,9 +127,8 @@ jobs:
           </manifest>
           EOF
 
-          # 确保必要的资源目录存在（但无需自定义资源）
+          # 创建最小的资源文件（即使不被引用，也确保存在）
           mkdir -p android/app/src/main/res/values
-          # 创建空白的 colors.xml 和 strings.xml（但不会被引用，仅作兜底）
           cat > android/app/src/main/res/values/colors.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
@@ -162,10 +144,12 @@ jobs:
           </resources>
           EOF
 
+          echo "Minimal configuration written."
+
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      - name: Generate Gradle Wrapper with version 8.2
+      - name: Generate Gradle Wrapper
         working-directory: android
         run: |
           if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
@@ -174,11 +158,11 @@ jobs:
 
       - name: Build Debug APK
         working-directory: android
-        run: ./gradlew assembleDebug --stacktrace --no-daemon
+        run: ./gradlew clean assembleDebug --stacktrace
 
       - name: Build Release APK (unsigned)
         working-directory: android
-        run: ./gradlew assembleRelease --stacktrace --no-daemon
+        run: ./gradlew assembleRelease --stacktrace
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || '' }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS || '' }}
