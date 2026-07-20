@@ -59,9 +59,30 @@ jobs:
           npx cap add android
           npx cap sync android
 
-      - name: Apply fixes to build.gradle, manifest, and resources
+          # 删除 capacitor-android 模块的 res 文件夹（彻底清除 SplashScreen 主题）
+          rm -rf android/node_modules/@capacitor/android/capacitor/src/main/res
+
+      - name: Override configuration files with correct settings
         run: |
-          # 1. app/build.gradle: 添加 namespace，repositories，确保 compileSdk 34
+          # 1. settings.gradle
+          cat > android/settings.gradle << 'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+              plugins {
+                  id 'com.android.application' version '8.2.0'
+              }
+          }
+          rootProject.name = "MyApp"
+          include ':app'
+          include ':capacitor-android'
+          project(':capacitor-android').projectDir = new File('../node_modules/@capacitor/android/capacitor')
+          EOF
+
+          # 2. app/build.gradle（显式添加 appcompat 依赖）
           cat > android/app/build.gradle << 'EOF'
           apply plugin: 'com.android.application'
 
@@ -96,28 +117,11 @@ jobs:
 
           dependencies {
               implementation project(':capacitor-android')
+              implementation 'androidx.appcompat:appcompat:1.6.1'   // 显式添加 appcompat
           }
           EOF
 
-          # 2. settings.gradle 确保正确包含插件版本
-          cat > android/settings.gradle << 'EOF'
-          pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-              plugins {
-                  id 'com.android.application' version '8.2.0'
-              }
-          }
-          rootProject.name = "MyApp"
-          include ':app'
-          include ':capacitor-android'
-          project(':capacitor-android').projectDir = new File('../node_modules/@capacitor/android/capacitor')
-          EOF
-
-          # 3. AndroidManifest.xml: 移除 package 属性，使用系统主题或不设置主题
+          # 3. AndroidManifest.xml（使用系统主题，避免 SplashScreen 引用）
           cat > android/app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -144,7 +148,7 @@ jobs:
           </manifest>
           EOF
 
-          # 4. 提供 colors.xml, strings.xml, styles.xml
+          # 4. 资源文件（colors, strings, styles）
           mkdir -p android/app/src/main/res/values
           cat > android/app/src/main/res/values/colors.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
