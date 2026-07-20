@@ -65,8 +65,8 @@ jobs:
           npx cap sync android
           echo "Android project regenerated."
 
-      # ========== 用标准模板覆盖 settings.gradle 和 app/build.gradle ==========
-      - name: Override Gradle files with correct templates
+      # ========== 用标准模板覆盖 settings.gradle 和 app/build.gradle，并添加缺失资源 ==========
+      - name: Override Gradle files and create missing resources
         run: |
           # 覆盖 settings.gradle
           cat > android/settings.gradle << 'EOF'
@@ -83,7 +83,7 @@ jobs:
           project(':capacitor-android').projectDir = new File('../node_modules/@capacitor/android/capacitor')
           EOF
 
-          # 覆盖 app/build.gradle
+          # 覆盖 app/build.gradle（添加 splashscreen 依赖）
           cat > android/app/build.gradle << 'EOF'
           apply plugin: 'com.android.application'
 
@@ -118,17 +118,41 @@ jobs:
 
           dependencies {
               implementation project(':capacitor-android')
+              implementation 'androidx.core:core-splashscreen:1.0.1'
           }
           EOF
 
-          echo "Gradle files overwritten with correct templates."
+          # 创建 themes.xml 定义 Theme.SplashScreen
+          mkdir -p android/app/src/main/res/values
+          cat > android/app/src/main/res/values/themes.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="Theme.SplashScreen" parent="Theme.AppCompat.Light.NoActionBar">
+                  <item name="android:windowBackground">@color/colorPrimary</item>
+                  <item name="android:windowFullscreen">true</item>
+              </style>
+          </resources>
+          EOF
+
+          # 确保 colors.xml 存在
+          if [ ! -f android/app/src/main/res/values/colors.xml ]; then
+              cat > android/app/src/main/res/values/colors.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="colorPrimary">#0a0a0f</color>
+              <color name="colorPrimaryDark">#0a0a0f</color>
+              <color name="colorAccent">#FF4081</color>
+          </resources>
+          EOF
+          fi
+
+          echo "Gradle files and resources created."
 
       # ========== 修正 AndroidManifest.xml ==========
       - name: Fix AndroidManifest.xml
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST" ]; then
-            # 删除 package 属性
             sed -i 's/package="[^"]*"//' "$MANIFEST"
             echo "AndroidManifest.xml package attribute removed."
           else
