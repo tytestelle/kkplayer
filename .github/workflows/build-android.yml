@@ -58,7 +58,7 @@ jobs:
         run: npm install
 
       - name: Sync Capacitor
-        run: npx cap sync android --verbose   # 移除 --clean
+        run: npx cap sync android   # 正确命令，不带额外参数
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
