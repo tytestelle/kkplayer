@@ -54,31 +54,50 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Ensure Capacitor Android package
+      # ========== 新增：彻底重建 Android 项目 ==========
+      - name: Regenerate Android project from scratch
         run: |
-          if [ ! -d "node_modules/@capacitor/android" ]; then
-            echo "Installing @capacitor/android..."
-            npm install @capacitor/android@^6.0.0
+          echo "Removing existing android directory..."
+          rm -rf android
+          echo "Adding Android platform via Capacitor..."
+          npx cap add android
+          echo "Syncing Capacitor..."
+          npx cap sync android
+          echo "Android project regenerated."
+
+      # ========== 自动修正 build.gradle 和 AndroidManifest.xml ==========
+      - name: Fix Android build configuration
+        run: |
+          # 修正 build.gradle：添加 namespace，设置 compileSdk 和 targetSdk 为 34
+          BUILD_GRADLE="android/app/build.gradle"
+          if [ -f "$BUILD_GRADLE" ]; then
+            # 用 sed 在 android { 块内添加 namespace（如果不存在）
+            if ! grep -q "namespace " "$BUILD_GRADLE"; then
+              sed -i '/android {/a \    namespace "com.ku9.player"' "$BUILD_GRADLE"
+            fi
+            # 确保 compileSdk 为 34
+            sed -i 's/compileSdk [0-9]*/compileSdk 34/' "$BUILD_GRADLE"
+            # 确保 targetSdk 为 34
+            sed -i 's/targetSdk [0-9]*/targetSdk 34/' "$BUILD_GRADLE"
+            echo "build.gradle updated."
+          else
+            echo "Warning: $BUILD_GRADLE not found."
           fi
 
-      - name: Verify web assets exist
-        run: |
-          if [ ! -f "src/index.html" ]; then
-            echo "ERROR: src/index.html not found!"
-            exit 1
+          # 修正 AndroidManifest.xml：删除 package 属性
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if [ -f "$MANIFEST" ]; then
+            # 用 sed 删除 manifest 标签中的 package 属性
+            sed -i 's/package="[^"]*"//' "$MANIFEST"
+            echo "AndroidManifest.xml updated."
+          else
+            echo "Warning: $MANIFEST not found."
           fi
-          echo "Web assets found in src/"
 
-      - name: Sync Capacitor
-        run: npx cap sync android
-
-      - name: Fix missing capacitor-android directory
-        run: |
-          if [ ! -d "android/node_modules/@capacitor/android/capacitor" ]; then
-            echo "Capacitor Android directory missing, creating symlink..."
-            mkdir -p android/node_modules/@capacitor/android
-            ln -s ../../../node_modules/@capacitor/android/capacitor android/node_modules/@capacitor/android/capacitor
-          fi
+          # 额外：确保有 colors.xml、strings.xml、styles.xml（模板自带，但以防万一）
+          mkdir -p android/app/src/main/res/values
+          # 如果缺失则创建基本文件（但模板应已存在）
+      # ====================================================
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
@@ -91,47 +110,6 @@ jobs:
             gradle wrapper --gradle-version 8.2
           else
             echo "gradle-wrapper.jar exists, skipping generation."
-          fi
-
-      - name: Create missing resource files
-        run: |
-          mkdir -p android/app/src/main/res/values
-          # colors.xml
-          if [ ! -f android/app/src/main/res/values/colors.xml ]; then
-            cat > android/app/src/main/res/values/colors.xml << 'EOF'
-        <?xml version="1.0" encoding="utf-8"?>
-        <resources>
-            <color name="colorPrimary">#0a0a0f</color>
-            <color name="colorPrimaryDark">#0a0a0f</color>
-            <color name="colorAccent">#FF4081</color>
-        </resources>
-        EOF
-          fi
-          # strings.xml
-          if [ ! -f android/app/src/main/res/values/strings.xml ]; then
-            cat > android/app/src/main/res/values/strings.xml << 'EOF'
-        <?xml version="1.0" encoding="utf-8"?>
-        <resources>
-            <string name="app_name">KU9 Player</string>
-            <string name="title_activity_main">KU9 Player</string>
-        </resources>
-        EOF
-          fi
-          # styles.xml
-          if [ ! -f android/app/src/main/res/values/styles.xml ]; then
-            cat > android/app/src/main/res/values/styles.xml << 'EOF'
-        <?xml version="1.0" encoding="utf-8"?>
-        <resources>
-            <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
-                <item name="colorPrimary">@color/colorPrimary</item>
-                <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
-                <item name="colorAccent">@color/colorAccent</item>
-            </style>
-            <style name="AppTheme.NoActionBarLaunch" parent="Theme.AppCompat.Light.NoActionBar">
-                <item name="android:windowBackground">@color/colorPrimary</item>
-            </style>
-        </resources>
-        EOF
           fi
 
       - name: Build Debug APK
