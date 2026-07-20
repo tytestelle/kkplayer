@@ -26,9 +26,6 @@
     "rimraf": "^5.0.5",
     "serve": "^14.2.3"
   },
-  "dependencies": {
-    // 这里不再包含 keep-awake，如果你有其他依赖，请保留
-  },
   "repository": {
     "type": "git",
     "url": "https://github.com/yourusername/ku9-player.git"
