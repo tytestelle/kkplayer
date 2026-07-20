@@ -83,7 +83,7 @@ jobs:
           include ':app'
           EOF
 
-          # ----- app/build.gradle （添加了 namespace） -----
+          # ----- app/build.gradle （添加了 repositories 和 namespace） -----
           cat > android/app/build.gradle << 'EOF'
           plugins {
               id 'com.android.application'
@@ -103,6 +103,10 @@ jobs:
                       minifyEnabled false
                   }
               }
+          }
+          repositories {
+              google()
+              mavenCentral()
           }
           dependencies {
               implementation 'androidx.appcompat:appcompat:1.6.1'
@@ -178,12 +182,9 @@ jobs:
       - name: Generate Gradle Wrapper
         working-directory: android
         run: |
-          # 清理旧的 wrapper 文件，确保生成正确版本
           rm -rf gradle/wrapper
           gradle wrapper --gradle-version 8.2
           chmod +x gradlew
-          # 验证 wrapper 版本
-          ./gradlew --version
 
       - name: Build Debug APK
         working-directory: android
