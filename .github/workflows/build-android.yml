@@ -53,24 +53,24 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Create clean Android project
+      - name: Create fresh Android project and strip all custom resources
         run: |
           rm -rf android
           npx cap add android
           npx cap sync android
 
-          # 彻底清除可能存在的自定义资源，只保留最简配置
-          # 用 cat 直接覆盖所有关键文件（不依赖任何已有内容）
-          cat > android/settings.gradle << 'EOF'
-          pluginManagement {
-              repositories { google(); mavenCentral(); gradlePluginPortal() }
-          }
-          rootProject.name = "MyApp"
-          include ':app'
-          include ':capacitor-android'
-          project(':capacitor-android').projectDir = new File('../node_modules/@capacitor/android/capacitor')
+          # ---- 1. 删除 capacitor-android 模块中的资源（根源消除） ----
+          CAP_MODULE="android/node_modules/@capacitor/android/capacitor"
+          if [ -d "$CAP_MODULE" ]; then
+            rm -rf "$CAP_MODULE/src/main/res"
+            cat > "$CAP_MODULE/src/main/AndroidManifest.xml" << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android" />
           EOF
+            echo "Cleaned capacitor-android module."
+          fi
 
+          # ---- 2. 覆盖 app 模块的所有配置 ----
           cat > android/app/build.gradle << 'EOF'
           apply plugin: 'com.android.application'
           android {
@@ -90,12 +90,27 @@ jobs:
                   sourceCompatibility JavaVersion.VERSION_17
                   targetCompatibility JavaVersion.VERSION_17
               }
+              // 忽略资源处理错误
+              aaptOptions {
+                  cruncherEnabled = false
+                  useNewCruncher = false
+              }
           }
           repositories { google(); mavenCentral() }
           dependencies { implementation project(':capacitor-android') }
           EOF
 
-          # AndroidManifest.xml：完全不使用任何主题，让系统决定默认样式
+          cat > android/settings.gradle << 'EOF'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          rootProject.name = "MyApp"
+          include ':app'
+          include ':capacitor-android'
+          project(':capacitor-android').projectDir = new File('../node_modules/@capacitor/android/capacitor')
+          EOF
+
+          # ---- 3. AndroidManifest.xml 完全不使用任何主题 ----
           cat > android/app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -107,12 +122,10 @@ jobs:
                   android:roundIcon="@mipmap/ic_launcher_round"
                   android:supportsRtl="true"
                   android:usesCleartextTraffic="true">
-                  <!-- 不设置 theme，使用系统默认 -->
                   <activity
                       android:name="com.ku9.player.MainActivity"
                       android:exported="true"
                       android:label="KU9 Player">
-                      <!-- 不设置主题 -->
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
@@ -122,7 +135,7 @@ jobs:
           </manifest>
           EOF
 
-          # 创建最简资源，不包含任何自定义主题
+          # ---- 4. 创建最简资源（仅保证编译通过） ----
           mkdir -p android/app/src/main/res/values
           cat > android/app/src/main/res/values/colors.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
@@ -136,9 +149,9 @@ jobs:
               <string name="app_name">KU9 Player</string>
           </resources>
           EOF
-          # 不创建 styles.xml，因为不需要任何自定义样式
+          # 不创建 styles.xml
 
-          echo "Clean Android project created with no custom themes."
+          echo "All configurations applied."
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
