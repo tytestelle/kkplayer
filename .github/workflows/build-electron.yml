@@ -29,9 +29,9 @@ jobs:
       - name: Install dependencies
         shell: pwsh
         run: |
-          npm ci
+          npm install   # 原为 npm ci
           cd electron
-          npm ci
+          npm install   # 原为 npm ci
 
       - name: Build Windows App
         shell: pwsh
@@ -71,9 +71,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          npm ci
+          npm install   # 原为 npm ci
           cd electron
-          npm ci
+          npm install   # 原为 npm ci
 
       - name: Build macOS App
         run: |
@@ -108,9 +108,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          npm ci
+          npm install   # 原为 npm ci
           cd electron
-          npm ci
+          npm install   # 原为 npm ci
 
       - name: Build Linux App
         run: |
