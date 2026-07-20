@@ -38,7 +38,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
         with:
-          packages: "platform-tools platforms;android-33 build-tools;33.0.0"
+          packages: "platform-tools platforms;android-34 build-tools;34.0.0"
 
       - name: Cache Gradle
         uses: actions/cache@v4
@@ -88,7 +88,6 @@ jobs:
         run: |
           if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
             echo "Generating Gradle wrapper with version 8.2..."
-            # 使用 gradle 命令生成 wrapper，并指定版本 8.2（与 AGP 8.2.0 兼容）
             gradle wrapper --gradle-version 8.2
           else
             echo "gradle-wrapper.jar exists, skipping generation."
